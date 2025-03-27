@@ -4,6 +4,7 @@ Type stubs for lib.rs
 
 from __future__ import annotations
 from typing import Callable, Optional, Mapping, Any, List, Union, TypeAlias
+import re
 
 class DataLogError(Exception):
     pass
@@ -288,6 +289,66 @@ class AuthorizerBuilder:
     # :param token: the token to authorize
     # :type token: Biscuit
     def build(self, token: Biscuit) -> Authorizer: ...
+
+class AuthorizationState:
+    def __init__(self, source, matches:dict or None, checks:dict or None, facts:dict or None, rights:dict or None):
+        # must have source , can derive the rest
+        self.source = source
+
+        self.matches = {}
+        self.checks = {}
+        self.facts = {}
+        self.rights = {}
+
+        # This is a data class , everything it knows comes in through init params
+        if matches is not None:
+            self.matches = matches
+
+        if checks is not None:
+            self.checks = checks
+
+        if facts is not None:
+            self.facts = facts
+
+        if rights is not None:
+            self.rights = rights
+
+        if self.source:
+            self.parse_source()
+
+    def parse_source(self):
+        to_return = {}
+        for count, line in enumerate(self.source.splitlines()):
+            if m := re.match(r'^(.+)\((.+)\);$', line):
+                key = m.group(1)
+                value = m.group(2)
+                value = value.replace('"', '')
+                if key.startswith('check if'):
+                    key = key.split('check if ')[1]
+                    self.checks[key] = value
+                    next
+                if key.startswith('allow if'):
+                    key = key.split('allow if ')[1]
+                    self.matches[key] = value
+                    next
+                if key.startswith('right'):
+                    #entity,release,action = value.split(',')
+                    self.rights[count] = value
+                    next
+                self.facts[key] = value
+        return True
+
+    def get_matches(self, name):
+         return self.matches.get(name)
+
+     ### PLANNING VIA COMMENTS :)
+     ### to be returned by authorizer.authorize()
+     ### impliment __bool__ to make it usable as a conditional on the success or failure of the operation
+     ### matched - a dict of match rules - key is match rule , bool value is the result
+     ### checked - a dict of checks -  key is match rule , bool value is the result
+     ### fact - a dict of facts
+     ### source - the datalog the authorizer used
+     ###
 
 class Authorizer:
     # Runs the authorization checks and policies
