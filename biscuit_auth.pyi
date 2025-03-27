@@ -3,6 +3,8 @@ Type stubs for lib.rs
 """
 
 from __future__ import annotations
+
+from datetime import datetime
 from typing import Callable, Optional, Mapping, Any, List, Union, TypeAlias
 import re
 
@@ -291,28 +293,29 @@ class AuthorizerBuilder:
     def build(self, token: Biscuit) -> Authorizer: ...
 
 class AuthorizationState:
-    def __init__(self, source, matches:dict or None, checks:dict or None, facts:dict or None, rights:dict or None):
+    def __init__(self, source, matches:dict or None=None, checks:dict or None=None, facts:dict or None=None, rights:dict or None=None):
         # must have source , can derive the rest
         self.source = source
 
-        self.matches = {}
-        self.checks = {}
-        self.facts = {}
-        self.rights = {}
+        self._matches = {}
+        self._checks = {}
+        self._facts = {}
+        self._rights = {}
 
         # This is a data class , everything it knows comes in through init params
         if matches is not None:
-            self.matches = matches
+            self._matches = matches
 
         if checks is not None:
-            self.checks = checks
+            self._checks = checks
 
         if facts is not None:
-            self.facts = facts
+            self._facts = facts
 
         if rights is not None:
-            self.rights = rights
+            self._rights = rights
 
+        # if we have source then parse it to populate the internal structures
         if self.source:
             self.parse_source()
 
@@ -323,32 +326,63 @@ class AuthorizationState:
                 key = m.group(1)
                 value = m.group(2)
                 value = value.replace('"', '')
+
+                # parse sets out of the string
+                if value.endswith(', set'):
+                    firsttrim = value.split('[')[1]
+                    middle = firsttrim.split(']')[0]
+                    value = middle.split(',')
+                elif value.endswith(', date'):
+                    date,trash = value.split(',')
+                    value = datetime.fromisoformat(date)
+
                 if key.startswith('check if'):
                     key = key.split('check if ')[1]
-                    self.checks[key] = value
+                    self._checks[key] = value
                     next
                 if key.startswith('allow if'):
                     key = key.split('allow if ')[1]
-                    self.matches[key] = value
+                    self._matches[key] = value
                     next
                 if key.startswith('right'):
                     #entity,release,action = value.split(',')
-                    self.rights[count] = value
+                    self._rights[count] = value
                     next
-                self.facts[key] = value
+                self._facts[key] = value
         return True
 
-    def get_matches(self, name):
-         return self.matches.get(name)
+    def get_match(self, match):
+         return self._matches.get(match)
 
-     ### PLANNING VIA COMMENTS :)
-     ### to be returned by authorizer.authorize()
-     ### impliment __bool__ to make it usable as a conditional on the success or failure of the operation
-     ### matched - a dict of match rules - key is match rule , bool value is the result
-     ### checked - a dict of checks -  key is match rule , bool value is the result
-     ### fact - a dict of facts
-     ### source - the datalog the authorizer used
-     ###
+    def get_matches(self):
+        for match in self._matches.keys():
+            yield self._matches.get(match)
+
+    def get_check(self, check):
+        return self._checks(check)
+
+    def get_checks(self):
+        for check in self._checks.keys():
+            yield self._checks.get(check)
+
+    def get_right(self, item: int):
+        return self._rights[item]
+
+    def get_rights(self):
+        for right in self._rights:
+            yield right
+
+    def get_fact(self, fact):
+        return self._facts[fact]
+
+    def get_fact_names(self):
+        for key in self._facts.keys():
+            yield key
+
+    def get_facts(self):
+        for fact in self._facts.keys():
+            yield {fact, self._facts[fact]}
+
 
 class Authorizer:
     # Runs the authorization checks and policies
