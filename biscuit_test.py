@@ -515,7 +515,7 @@ def test_read_third_party_facts():
 
     assert facts[0].terms[0] == "56"
 
-def test_third_party_serialise():
+def test_third_party_serialize():
     root_kp = KeyPair()
     biscuit_builder = BiscuitBuilder("user({id})", { 'id': "1234" })
     biscuit = biscuit_builder.build(root_kp.private_key)
@@ -526,14 +526,14 @@ def test_third_party_serialise():
 
     b64 = third_party_request.to_base64()
     assert type(b64) == str
-    print(b64)
+
     recovered_request = ThirdPartyRequest(base64=b64)
     third_party_block = recovered_request.create_block(third_party_kp.private_key, new_block)
     biscuit_with_third_party_block = biscuit.append_third_party(third_party_kp.public_key, third_party_block)
 
     assert repr(biscuit_with_third_party_block.block_external_key(1)) == repr(third_party_kp.public_key)
 
-def test_third_party_serialise_fail():
+def test_third_party_serialize_fail():
     root_kp = KeyPair()
     biscuit_builder = BiscuitBuilder("user({id})", { 'id': "1234" })
     biscuit = biscuit_builder.build(root_kp.private_key)
